@@ -6,7 +6,6 @@ import {
   useRef,
   useState,
 } from 'react';
-import { createPortal } from 'react-dom';
 import {
   IonBadge,
   IonButton,
@@ -17,8 +16,6 @@ import {
   IonIcon,
   IonRange,
   useIonModal,
-  useIonViewWillEnter,
-  useIonViewWillLeave,
 } from '@ionic/react';
 import ForceGraph3D from 'react-force-graph-3d';
 import {
@@ -101,20 +98,6 @@ const GraphView3D = ({
       links: [],
     },
   );
-
-  useIonViewWillEnter(() => {
-    const container = document.getElementById('fg-portal');
-    if (container !== null) {
-      container.style.display = 'block'; // Show portal container
-    }
-  }, []);
-
-  useIonViewWillLeave(() => {
-    const container = document.getElementById('fg-portal');
-    if (container !== null) {
-      container.style.display = 'none'; // Remove portal container
-    }
-  }, []);
 
   const deflateNodes = () => {
     setData(() => {
@@ -205,80 +188,70 @@ const GraphView3D = ({
             width: '100%',
             height: 'calc(100vh - 220px)',
             position: 'relative',
-            zIndex: 1,
             background: 'transparent',
           }}
         />
-        {rect
-          ? createPortal(
-              <div
-                style={{
-                  position: 'fixed',
-                  left: rect.left,
-                  top: rect.top,
-                  width: rect.width,
-                  height: rect.height,
-                  pointerEvents: 'auto',
-                }}
-              >
-                <ForceGraph3D
-                  ref={forceRef}
-                  nodeRelSize={NODE_R}
-                  extraRenderers={extraRenderers}
-                  width={rect.width}
-                  height={rect.height}
-                  graphData={JSON.parse(JSON.stringify(data))}
-                  linkWidth={(link) => 1}
-                  linkDirectionalParticles={(link) =>
-                    scaleEdgeWeight(link.value, maxWeight) * 5
-                  }
-                  linkDirectionalParticleSpeed={(link) =>
-                    scaleEdgeWeight(link.value, maxWeight) * 0.01
-                  }
-                  nodeThreeObject={(node) => {
-                    let parent = null;
+        {rect ? (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+            }}
+          >
+            <ForceGraph3D
+              ref={forceRef}
+              nodeRelSize={NODE_R}
+              extraRenderers={extraRenderers}
+              width={rect.width}
+              height={rect.height}
+              graphData={JSON.parse(JSON.stringify(data))}
+              linkWidth={(link) => 1}
+              linkDirectionalParticles={(link) =>
+                scaleEdgeWeight(link.value, maxWeight) * 5
+              }
+              linkDirectionalParticleSpeed={(link) =>
+                scaleEdgeWeight(link.value, maxWeight) * 0.01
+              }
+              nodeThreeObject={(node) => {
+                let parent = null;
 
-                    if (node.id === initialNode?.id || node.id === -1) {
-                      const icon = document.createElement('ion-icon');
-                      icon.slot = 'end';
-                      icon.icon =
-                        node.id === -1
-                          ? addCircleOutline
-                          : chevronExpandOutline;
+                if (node.id === initialNode?.id || node.id === -1) {
+                  const icon = document.createElement('ion-icon');
+                  icon.slot = 'end';
+                  icon.icon =
+                    node.id === -1 ? addCircleOutline : chevronExpandOutline;
 
-                      const par = document.createElement('ion-button');
-                      par.appendChild(icon);
+                  const par = document.createElement('ion-button');
+                  par.appendChild(icon);
 
-                      par.size = 'small';
-                      par.style.textTransform = 'none';
+                  par.size = 'small';
+                  par.style.textTransform = 'none';
 
-                      par.color = node.id === -1 ? 'danger' : 'primary';
+                  par.color = node.id === -1 ? 'danger' : 'primary';
 
-                      parent = par;
-                    } else {
-                      parent = document.createElement('ion-badge');
-                      parent.color = 'tertiary';
-                    }
+                  parent = par;
+                } else {
+                  parent = document.createElement('ion-badge');
+                  parent.color = 'tertiary';
+                }
 
-                    parent.addEventListener('click', function (e) {
-                      e.stopPropagation();
-                      handleNodeFocus(node, true);
-                    });
-                    parent.style.cursor = 'pointer';
-                    parent.style.pointerEvents = 'auto'; // Ensure element is clickable
+                parent.addEventListener('click', function (e) {
+                  e.stopPropagation();
+                  handleNodeFocus(node, true);
+                });
+                parent.style.cursor = 'pointer';
+                parent.style.pointerEvents = 'auto'; // Ensure element is clickable
 
-                    const nodeEl = document.createElement('code');
-                    nodeEl.textContent = node.label || shortenB64(node.pubkey);
+                const nodeEl = document.createElement('code');
+                nodeEl.textContent = node.label || shortenB64(node.pubkey);
 
-                    parent.appendChild(nodeEl);
-                    return new CSS2DObject(parent);
-                  }}
-                  nodeThreeObjectExtend={true}
-                />
-              </div>,
-              document.getElementById('fg-portal')!,
-            )
-          : null}
+                parent.appendChild(nodeEl);
+                return new CSS2DObject(parent);
+              }}
+              nodeThreeObjectExtend={true}
+            />
+          </div>
+        ) : null}
       </IonCardContent>
     </IonCard>
   );

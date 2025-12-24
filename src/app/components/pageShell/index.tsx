@@ -20,6 +20,7 @@ interface ToolBarButton {
   label: string;
   renderIcon?: () => JSX.Element;
   action: () => void;
+  key?: string;
 }
 
 interface Props {
@@ -76,7 +77,7 @@ export const PageShell = ({ onDismissModal, renderBody, tools }: Props) => {
           {!!tools?.length && (
             <IonButtons slot="end">
               {tools.map((tool) => (
-                <IonButton key={tool.label} onClick={tool.action}>
+                <IonButton key={tool.key ?? tool.label} onClick={tool.action}>
                   {tool.renderIcon ? tool.renderIcon() : tool.label}
                 </IonButton>
               ))}

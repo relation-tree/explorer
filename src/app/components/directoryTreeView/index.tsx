@@ -15,7 +15,6 @@ import {
 import { chevronForward, chevronDown } from 'ionicons/icons';
 import { NormalizedGraph } from '../../state/graphStore';
 import { toDirectoryEntry } from '../../domain/directoryEntry';
-import { shortenB64 } from '../../utils/compat';
 
 interface DirectoryTreeViewProps {
   forKey: string;
@@ -44,38 +43,20 @@ export const DirectoryTreeView = ({
   const neighbors = useMemo(() => {
     if (!normalizedGraph || !rootNode) return [];
     const outgoingLinks = normalizedGraph.outgoing.get(rootNode.id) ?? [];
-    const incomingLinks = normalizedGraph.incoming.get(rootNode.id) ?? [];
-
     const uniqueIds = new Set<number>();
-    const collect = (links: typeof outgoingLinks, fromSource: boolean) =>
-      links
-        .map((link) => ({
-          link,
-          nodeId: fromSource ? link.target : link.source,
-        }))
-        .filter(({ nodeId }) => {
-          if (uniqueIds.has(nodeId)) return false;
-          uniqueIds.add(nodeId);
-          return true;
-        });
 
-    return [...collect(outgoingLinks, true), ...collect(incomingLinks, false)]
-      .map(({ nodeId, link }) => {
-        const node = normalizedGraph.nodesById.get(nodeId);
-        if (!node) return null;
-        return {
-          link,
-          entry: toDirectoryEntry(
-            node,
-            normalizedGraph.incoming.get(node.id),
-            normalizedGraph.outgoing.get(node.id),
-          ),
-        };
+    return outgoingLinks
+      .map((link) => {
+        const node = normalizedGraph.nodesById.get(link.target);
+        if (!node || uniqueIds.has(node.id)) return null;
+        uniqueIds.add(node.id);
+        return toDirectoryEntry(
+          node,
+          normalizedGraph.incoming.get(node.id),
+          normalizedGraph.outgoing.get(node.id),
+        );
       })
-      .filter(Boolean) as {
-      link: typeof outgoingLinks[number];
-      entry: ReturnType<typeof toDirectoryEntry>;
-    }[];
+      .filter(Boolean) as ReturnType<typeof toDirectoryEntry>[];
   }, [normalizedGraph, rootNode]);
 
   const toggleExpanded = (nodeId: number) => {
@@ -96,7 +77,7 @@ export const DirectoryTreeView = ({
     <IonCard>
       <IonCardHeader className="ion-padding-horizontal">
         <IonCardSubtitle className="ion-no-padding">
-          <IonBadge color="primary">{neighbors.length} peers</IonBadge>
+          <IonBadge color="primary">{neighbors.length} outgoing peers</IonBadge>
         </IonCardSubtitle>
       </IonCardHeader>
       <IonCardContent>
@@ -109,7 +90,7 @@ export const DirectoryTreeView = ({
             isRoot
           />
           {expanded.has(rootEntry.id) &&
-            neighbors.map(({ entry }) => (
+            neighbors.map((entry) => (
               <TreeRow
                 key={entry.id}
                 entry={entry}
@@ -165,7 +146,7 @@ const TreeRow = ({
       </IonButton>
       <IonLabel>
         <strong>{entry.displayName}</strong>
-        <p>{entry.label ? entry.pubkey : shortenB64(entry.pubkey)}</p>
+        <p>{entry.memo?.trim() || entry.abbreviatedKey}</p>
       </IonLabel>
       <IonNote slot="end">
         <IonBadge color={isRoot ? 'primary' : 'tertiary'}>

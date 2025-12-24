@@ -92,7 +92,7 @@ const Navigator = ({
               <a
                 target="_blank"
                 rel="noreferrer"
-                href="https://github.com/living-book/directory"
+                href="https://github.com/relation-tree/directory"
               >
                 Directory
               </a>{' '}

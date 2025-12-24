@@ -1,7 +1,7 @@
 {
   "name": "explorer",
   "version": "0.1.0",
-  "homepage": "https://living-book.github.io/explorer",
+  "homepage": "https://relation-tree.github.io/explorer",
   "private": true,
   "dependencies": {
     "@ionic/react": "^8.5.4",

@@ -19,73 +19,27 @@ import '@ionic/react/css/display.css';
 /* Theme variables */
 import './theme/variables.css';
 
-import { useState, useEffect, useCallback } from 'react';
-import useWebSocket, { ReadyState } from 'react-use-websocket';
+import { useState, useEffect, useMemo } from 'react';
 import { AppContext } from './utils/appContext';
-import { DirectoryGraph } from './utils/appTypes';
-import { parseGraphDOT, socketEventListener } from './utils/compat';
 import { DEFAULT_CRUZBIT_NODE, DEFAULT_DIRECTORY_ID } from './utils/constants';
 import Explorer from './explorer';
+import { GraphClient } from './data/graphClient';
+import { GraphStore } from './state/graphStore';
 
 setupIonicReact({ mode: 'md' });
 
 const App: React.FC = () => {
-  const [selectedDirectory, setSelectedDirectory] =
-    useState(DEFAULT_DIRECTORY_ID);
+  const [selectedDirectory, setSelectedDirectory] = useState(
+    DEFAULT_DIRECTORY_ID,
+  );
 
   const [rankingFilter, setRankingFilter] = useState(0);
-
-  const { sendJsonMessage, readyState } = useWebSocket(
-    `wss://${DEFAULT_CRUZBIT_NODE}`,
-    {
-      protocols: ['cruzbit.1'],
-      onOpen: () => console.log('opened', DEFAULT_CRUZBIT_NODE),
-      onError: () => console.log('errored', DEFAULT_CRUZBIT_NODE),
-      shouldReconnect: () => true,
-      share: true,
-      onMessage: (event) => {
-        const { type, body } = JSON.parse(event.data);
-
-        switch (type) {
-          case 'graph':
-            document.dispatchEvent(
-              new CustomEvent<DirectoryGraph>('graph', {
-                detail: {
-                  public_key: body.public_key,
-                  ...parseGraphDOT(body.graph, body.public_key, rankingFilter),
-                },
-              }),
-            );
-            break;
-        }
-      },
-    },
+  const [viewMode, setViewMode] = useState<'graph3d' | 'tree'>('graph3d');
+  const graphClient = useMemo(
+    () => new GraphClient(`wss://${DEFAULT_CRUZBIT_NODE}`),
+    [],
   );
-
-  const requestGraph = useCallback(
-    (
-      publicKeyB64: string = '',
-      resultHandler: (graph: DirectoryGraph) => void,
-    ) => {
-      if (readyState !== ReadyState.OPEN) return;
-      if (!publicKeyB64) throw new Error('missing publicKey');
-
-      sendJsonMessage({
-        type: 'get_graph',
-        body: {
-          public_key: publicKeyB64,
-          directory_id: selectedDirectory,
-        },
-      });
-
-      return socketEventListener<DirectoryGraph>('graph', (data) => {
-        if (data.public_key === publicKeyB64) {
-          resultHandler(data);
-        }
-      });
-    },
-    [readyState, selectedDirectory, sendJsonMessage],
-  );
+  const graphStore = useMemo(() => new GraphStore(), []);
 
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
 
@@ -105,13 +59,21 @@ const App: React.FC = () => {
   }, [prefersDark, setColorScheme]);
 
   const appState = {
-    requestGraph,
+    graphClient,
+    graphStore,
     rankingFilter,
     setRankingFilter,
     selectedDirectory,
     setSelectedDirectory,
     colorScheme,
+    viewMode,
+    setViewMode,
   };
+
+  useEffect(() => {
+    graphClient.connect();
+    return () => graphClient.close();
+  }, [graphClient]);
 
   return (
     <AppContext.Provider value={appState}>

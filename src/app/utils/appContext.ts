@@ -1,25 +1,27 @@
 import { createContext } from 'react';
-import { DirectoryGraph } from '../utils/appTypes';
+import { GraphClient } from '../data/graphClient';
+import { GraphStore } from '../state/graphStore';
 
 interface AppState {
-  requestGraph: (
-    publicKeyB64: string,
-    resultHandler: (graph: DirectoryGraph) => void,
-  ) => (() => void) | undefined;
+  graphClient: GraphClient;
+  graphStore: GraphStore;
   rankingFilter: number;
   setRankingFilter: (rankingFilter: number) => void;
   selectedDirectory: string;
   setSelectedDirectory: (node: string) => void;
   colorScheme: 'light' | 'dark';
+  viewMode: 'graph3d' | 'tree';
+  setViewMode: (mode: 'graph3d' | 'tree') => void;
 }
 
 export const AppContext = createContext<AppState>({
-  requestGraph:
-    (publicKeyB64: string, resultHandler: (graph: DirectoryGraph) => void) =>
-    () => {},
+  graphClient: new GraphClient(),
+  graphStore: new GraphStore(),
   rankingFilter: 0,
   setRankingFilter: () => {},
   selectedDirectory: '',
   setSelectedDirectory: () => {},
   colorScheme: 'light',
+  viewMode: 'graph3d',
+  setViewMode: () => {},
 });

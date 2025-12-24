@@ -4,6 +4,7 @@ import { useClipboard } from '../../usefuls/useClipboard';
 import { shortenB64 } from '../../utils/compat';
 import MemoChip from '../memoChip';
 import { useDirectoryGraph } from '../../usefuls/useDirectoryGraph';
+import { toDirectoryEntry } from '../../domain/directoryEntry';
 
 export const KeyAbbrev = ({ value }: { value: string }) => {
   const abbrevKey = shortenB64(value);
@@ -13,11 +14,14 @@ export const KeyAbbrev = ({ value }: { value: string }) => {
 
 const PathInfo = ({ value }: { value: string }) => {
   const { copyToClipboard } = useClipboard();
-  const { pkNode } = useDirectoryGraph(value);
-
-  const pubKeyRanking = pkNode?.ranking;
-  const memo = pkNode?.memo;
-  const label = pkNode?.label;
+  const { pkNode, normalizedGraph } = useDirectoryGraph(value);
+  const entry = pkNode
+    ? toDirectoryEntry(
+        pkNode,
+        normalizedGraph?.incoming.get(pkNode.id),
+        normalizedGraph?.outgoing.get(pkNode.id),
+      )
+    : null;
 
   return (
     <>
@@ -27,16 +31,12 @@ const PathInfo = ({ value }: { value: string }) => {
           <IonIcon icon={copyOutline} color="primary"></IonIcon>
         </IonChip>
       </span>
-      {memo && <MemoChip value={memo} label={label} />}
-      {pubKeyRanking !== undefined && (
+      {entry?.memo && <MemoChip value={entry.memo} label={entry.label} />}
+      {entry && (
         <IonText color="primary">
           <p>
-            {pubKeyRanking !== undefined && (
-              <>
-                <strong>Attention: </strong>
-                <i>{Number((pubKeyRanking / 1) * 100).toFixed(2)}%</i>
-              </>
-            )}
+            <strong>Attention: </strong>
+            <i>{entry.attentionPct.toFixed(2)}%</i>
           </p>
         </IonText>
       )}

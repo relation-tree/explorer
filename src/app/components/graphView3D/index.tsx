@@ -2,7 +2,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -16,8 +15,6 @@ import {
   IonCardHeader,
   IonCardSubtitle,
   IonIcon,
-  IonItem,
-  IonList,
   IonRange,
   useIonModal,
   useIonViewWillEnter,
@@ -28,7 +25,6 @@ import {
   CSS2DRenderer,
   CSS2DObject,
 } from 'three/examples/jsm/renderers/CSS2DRenderer';
-import { useNodeViewer } from '../nodeViewer';
 import {
   optionsOutline,
   addCircleOutline,
@@ -38,26 +34,30 @@ import {
 } from 'ionicons/icons';
 import { AppContext } from '../../utils/appContext';
 import { shortenB64 } from '../../utils/compat';
-import { GraphLink, GraphNode } from '../../utils/appTypes';
+import { GraphLink, GraphNode, DirectoryGraph } from '../../utils/appTypes';
+import { useContainerRect } from '../../usefuls/useContainerRect';
+import { useNodeViewer } from '../nodeViewer';
 
 const NODE_R = 3;
 const extraRenderers = [new CSS2DRenderer()];
 
-function DirTree({
-  forKey,
-  setForKey,
-  nodes,
-  links,
-  rankingFilter,
-}: {
+interface GraphView3DProps {
   forKey: string;
   setForKey: (pk: string) => void;
-  nodes: GraphNode[];
-  links: GraphLink[];
+  graph?: DirectoryGraph;
   rankingFilter: number;
-  colorScheme: 'light' | 'dark';
-}) {
+}
+
+const GraphView3D = ({
+  forKey,
+  setForKey,
+  graph,
+  rankingFilter,
+}: GraphView3DProps) => {
   const [presentKV] = useNodeViewer(forKey);
+
+  const nodes = graph?.nodes ?? [];
+  const links = graph?.links ?? [];
 
   const handleNodeFocus = useCallback(
     (node: any, clicked: boolean = false) => {
@@ -85,7 +85,7 @@ function DirTree({
   const forceRef = useRef<any>();
 
   const maxWeight = useMemo(
-    () => Math.max(...links.map((l) => l.value)),
+    () => Math.max(...links.map((l) => l.value), 1),
     [links],
   );
 
@@ -94,29 +94,13 @@ function DirTree({
     value: rankingFilter,
   });
 
-  const placeholderRef = useRef<HTMLDivElement>(null);
-  const [rect, setRect] = useState<DOMRect | null>(null);
-
-  // Update rect on mount and when window resizes
-  useLayoutEffect(() => {
-    function updateRect() {
-      if (placeholderRef.current) {
-        setRect(placeholderRef.current.getBoundingClientRect());
-      }
-    }
-    updateRect();
-    window.addEventListener('resize', updateRect);
-    return () => window.removeEventListener('resize', updateRect);
-  }, []);
-
-  // Force a re-measure after initial paint
-  useEffect(() => {
-    setTimeout(() => {
-      if (placeholderRef.current) {
-        setRect(placeholderRef.current.getBoundingClientRect());
-      }
-    }, 0);
-  }, []);
+  const { ref, rect } = useContainerRect<HTMLDivElement>();
+  const [data, setData] = useState<{ nodes: GraphNode[]; links: GraphLink[] }>(
+    {
+      nodes: [],
+      links: [],
+    },
+  );
 
   useIonViewWillEnter(() => {
     const container = document.getElementById('fg-portal');
@@ -132,14 +116,8 @@ function DirTree({
     }
   }, []);
 
-  const [data, setData] = useState<{ nodes: GraphNode[]; links: GraphLink[] }>({
-    nodes: [],
-    links: [],
-  });
-
   const deflateNodes = () => {
     setData(() => {
-      // Find the latest incoming link to initialNode, ordered by height then time
       const incomingLinks = links
         .filter((l) => l.target === initialNode?.id)
         .sort((a, b) =>
@@ -154,7 +132,6 @@ function DirTree({
         };
       }
 
-      // Find the source node for the latest link
       const sourceNode = nodes.find((n) => n.id === latestLink.source);
 
       return {
@@ -222,7 +199,7 @@ function DirTree({
       </IonCardHeader>
       <IonCardContent className="ion-no-padding">
         <div
-          ref={placeholderRef}
+          ref={ref}
           className="flow-graph-container"
           style={{
             width: '100%',
@@ -305,38 +282,34 @@ function DirTree({
       </IonCardContent>
     </IonCard>
   );
-}
+};
 
 const scaleEdgeWeight = (weight: number, maxWeight: number) => {
   return Math.log2(2 + weight) / Math.log2(2 + maxWeight);
 };
 
-export default DirTree;
+export default GraphView3D;
 
 export const Filters = ({
   onDismiss,
   value,
 }: {
   onDismiss: () => void;
-  value: string;
+  value: number;
 }) => {
   const { rankingFilter, setRankingFilter } = useContext(AppContext);
 
   return (
     <div className="ion-padding">
-      <IonList>
-        <IonItem>
-          <IonRange
-            aria-label="Attention filter"
-            labelPlacement="start"
-            label={`Filter < ${value}%`}
-            pin={true}
-            pinFormatter={(value: number) => `${value}%`}
-            onIonChange={({ detail }) => setRankingFilter(Number(detail.value))}
-            value={rankingFilter}
-          />
-        </IonItem>
-      </IonList>
+      <IonRange
+        aria-label="Attention filter"
+        labelPlacement="start"
+        label={`Filter < ${value}%`}
+        pin={true}
+        pinFormatter={(value: number) => `${value}%`}
+        onIonChange={({ detail }) => setRankingFilter(Number(detail.value))}
+        value={rankingFilter}
+      />
     </div>
   );
 };

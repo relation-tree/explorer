@@ -1,37 +1,69 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useMemo } from 'react';
 import { AppContext } from '../utils/appContext';
-import { GraphNode, DirectoryGraph } from '../utils/appTypes';
+import { DirectoryGraph, GraphNode } from '../utils/appTypes';
+import { NormalizedGraph } from '../state/graphStore';
+import { shortenB64 } from '../utils/compat';
 
 export const useDirectoryGraph = (pubKey: string) => {
-  const { requestGraph } = useContext(AppContext);
+  const {
+    graphClient,
+    graphStore,
+    selectedDirectory,
+    rankingFilter,
+  } = useContext(AppContext);
 
   const [graph, setGraph] = useState<DirectoryGraph>();
+  const [normalized, setNormalized] = useState<NormalizedGraph>();
+  const cacheKey = useMemo(
+    () => graphStore.keyFor(selectedDirectory, pubKey, rankingFilter),
+    [graphStore, pubKey, rankingFilter, selectedDirectory],
+  );
 
   useEffect(() => {
-    let cleanup = () => {};
-    const timeoutId = window.setTimeout(() => {
-      if (pubKey) {
-        cleanup = requestGraph(pubKey, (data) => setGraph(data)) ?? cleanup;
-      }
-    }, 0);
+    const cached = graphStore.getGraph(cacheKey);
+    if (cached) {
+      setGraph(cached.raw);
+      setNormalized(cached);
+    }
+  }, [cacheKey, graphStore]);
+
+  useEffect(() => {
+    if (!pubKey) return;
+    const unsubscribe = graphClient.subscribeToGraph(
+      pubKey,
+      selectedDirectory,
+      rankingFilter,
+      (data) => {
+        setGraph(data);
+        const normalizedGraph = graphStore.setGraph(cacheKey, data);
+        setNormalized(normalizedGraph);
+      },
+    );
 
     return () => {
-      cleanup();
-      window.clearTimeout(timeoutId);
+      unsubscribe();
     };
-  }, [pubKey, requestGraph]);
+  }, [cacheKey, graphClient, graphStore, pubKey, rankingFilter, selectedDirectory]);
 
-  const pkNode = graph?.nodes.find((n) => n.pubkey === pubKey) ?? null;
+  const pkNode =
+    normalized?.nodesByPubKey.get(pubKey) ??
+    graph?.nodes.find((n) => n.pubkey === pubKey) ??
+    null;
 
-  const paths = graph?.links.map((link) => ({
-    ...link,
-    from: nodeName(link.source, graph.nodes),
-    to: nodeName(link.target, graph.nodes),
-  }));
+  const paths = useMemo(() => {
+    if (!normalized) return [];
+    return normalized.raw.links.map((link) => ({
+      ...link,
+      from: nodeName(link.source, normalized.raw.nodes),
+      to: nodeName(link.target, normalized.raw.nodes),
+    }));
+  }, [normalized]);
 
-  return { graph, paths, pkNode };
+  return { graph, normalizedGraph: normalized, paths, pkNode };
 };
 
 function nodeName(linkId: number, nodes: GraphNode[]): string {
-  return nodes.find((n) => n.id === linkId)?.label || 'unknown';
+  const targetNode = nodes.find((n) => n.id === linkId);
+  if (!targetNode) return 'unknown';
+  return targetNode.label || shortenB64(targetNode.pubkey);
 }

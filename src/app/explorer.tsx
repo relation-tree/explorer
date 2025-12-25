@@ -5,6 +5,8 @@ import GraphView3D from './components/graphView3D';
 import { useDirectoryGraph } from './usefuls/useDirectoryGraph';
 import { DirectoryTreeView } from './components/directoryTreeView';
 import { toDirectoryEntry } from './domain/directoryEntry';
+import { IonIcon, IonLabel } from '@ionic/react';
+import { folderOutline, gitNetworkOutline } from 'ionicons/icons';
 
 const Explorer = () => {
   const { rankingFilter, viewMode, setViewMode } = useContext(AppContext);
@@ -49,9 +51,20 @@ const Explorer = () => {
     <PageShell
       headerTools={[
         {
-          label: 'Toggle View',
           action: () =>
             setViewMode(viewMode === 'graph3d' ? 'tree' : 'graph3d'),
+          key: 'toggle-view',
+          renderIcon: () => (
+            <>
+              <IonIcon
+                slot="start"
+                icon={viewMode === 'graph3d' ? folderOutline : gitNetworkOutline}
+              />
+              <IonLabel>
+                {viewMode === 'graph3d' ? 'As list' : 'As tree'}
+              </IonLabel>
+            </>
+          ),
         },
       ]}
       tools={

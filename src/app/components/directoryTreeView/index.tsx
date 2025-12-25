@@ -2,8 +2,6 @@ import { useMemo, useState } from 'react';
 import {
   IonCard,
   IonCardContent,
-  IonCardHeader,
-  IonCardSubtitle,
   IonItem,
   IonLabel,
   IonList,
@@ -40,24 +38,32 @@ export const DirectoryTreeView = ({
     );
   }, [normalizedGraph, rootNode]);
 
-  const neighbors = useMemo(() => {
-    if (!normalizedGraph || !rootNode) return [];
-    const outgoingLinks = normalizedGraph.outgoing.get(rootNode.id) ?? [];
-    const uniqueIds = new Set<number>();
+  const childrenByNode = useMemo(() => {
+    const map = new Map<number, ReturnType<typeof toDirectoryEntry>[]>();
+    if (!normalizedGraph) return map;
 
-    return outgoingLinks
-      .map((link) => {
-        const node = normalizedGraph.nodesById.get(link.target);
-        if (!node || uniqueIds.has(node.id)) return null;
-        uniqueIds.add(node.id);
-        return toDirectoryEntry(
-          node,
-          normalizedGraph.incoming.get(node.id),
-          normalizedGraph.outgoing.get(node.id),
-        );
-      })
-      .filter(Boolean) as ReturnType<typeof toDirectoryEntry>[];
-  }, [normalizedGraph, rootNode]);
+    normalizedGraph.nodesById.forEach((node) => {
+      const outgoingLinks = normalizedGraph.outgoing.get(node.id) ?? [];
+      const uniqueIds = new Set<number>();
+
+      const children = outgoingLinks
+        .map((link) => {
+          const target = normalizedGraph.nodesById.get(link.target);
+          if (!target || uniqueIds.has(target.id)) return null;
+          uniqueIds.add(target.id);
+          return toDirectoryEntry(
+            target,
+            normalizedGraph.incoming.get(target.id),
+            normalizedGraph.outgoing.get(target.id),
+          );
+        })
+        .filter(Boolean) as ReturnType<typeof toDirectoryEntry>[];
+
+      map.set(node.id, children);
+    });
+
+    return map;
+  }, [normalizedGraph]);
 
   const toggleExpanded = (nodeId: number) => {
     setExpanded((prev) => {
@@ -73,33 +79,40 @@ export const DirectoryTreeView = ({
 
   if (!rootEntry || !normalizedGraph) return null;
 
+  const renderEntry = (
+    entry: ReturnType<typeof toDirectoryEntry>,
+    depth = 0,
+    ancestors: Set<number> = new Set(),
+  ) => {
+    const children =
+      childrenByNode.get(entry.id)?.filter((child) => !ancestors.has(child.id)) ??
+      [];
+    const hasChildren = children.length > 0;
+    const nextAncestors = new Set(ancestors).add(entry.id);
+
+    return (
+      <>
+        <TreeRow
+          entry={entry}
+          onSelect={() => setForKey(entry.pubkey)}
+          onToggle={() => hasChildren && toggleExpanded(entry.id)}
+          isExpanded={expanded.has(entry.id)}
+          hasChildren={hasChildren}
+          depth={depth}
+          isRoot={entry.id === rootEntry.id}
+        />
+        {hasChildren &&
+          expanded.has(entry.id) &&
+          children.map((child) => renderEntry(child, depth + 1, nextAncestors))}
+      </>
+    );
+  };
+
   return (
     <IonCard>
-      <IonCardHeader className="ion-padding-horizontal">
-        <IonCardSubtitle className="ion-no-padding">
-          <IonBadge color="primary">{neighbors.length} outgoing peers</IonBadge>
-        </IonCardSubtitle>
-      </IonCardHeader>
       <IonCardContent>
         <IonList>
-          <TreeRow
-            entry={rootEntry}
-            onSelect={() => setForKey(rootEntry.pubkey)}
-            onToggle={() => toggleExpanded(rootEntry.id)}
-            isExpanded={expanded.has(rootEntry.id)}
-            isRoot
-          />
-          {expanded.has(rootEntry.id) &&
-            neighbors.map((entry) => (
-              <TreeRow
-                key={entry.id}
-                entry={entry}
-                depth={1}
-                onSelect={() => setForKey(entry.pubkey)}
-                onToggle={() => toggleExpanded(entry.id)}
-                isExpanded={expanded.has(entry.id)}
-              />
-            ))}
+          {renderEntry(rootEntry)}
         </IonList>
       </IonCardContent>
     </IonCard>
@@ -113,6 +126,7 @@ interface TreeRowProps {
   isExpanded: boolean;
   depth?: number;
   isRoot?: boolean;
+  hasChildren: boolean;
 }
 
 const TreeRow = ({
@@ -120,6 +134,7 @@ const TreeRow = ({
   onSelect,
   onToggle,
   isExpanded,
+  hasChildren,
   depth = 0,
   isRoot = false,
 }: TreeRowProps) => {
@@ -131,19 +146,23 @@ const TreeRow = ({
       onClick={onSelect}
       style={{ paddingInlineStart: paddingStart }}
     >
-      <IonButton
-        fill="clear"
-        slot="start"
-        onClick={(event) => {
-          event.stopPropagation();
-          onToggle();
-        }}
-      >
-        <IonIcon
-          icon={isExpanded ? chevronDown : chevronForward}
-          slot="icon-only"
-        />
-      </IonButton>
+      {hasChildren ? (
+        <IonButton
+          fill="clear"
+          slot="start"
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggle();
+          }}
+        >
+          <IonIcon
+            icon={isExpanded ? chevronDown : chevronForward}
+            slot="icon-only"
+          />
+        </IonButton>
+      ) : (
+        <div style={{ width: 40 }} />
+      )}
       <IonLabel>
         <strong>{entry.displayName}</strong>
         <p>{entry.memo?.trim() || entry.abbreviatedKey}</p>

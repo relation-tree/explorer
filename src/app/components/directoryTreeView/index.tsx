@@ -165,7 +165,7 @@ const TreeRow = ({
       )}
       <IonLabel>
         <strong>{entry.displayName}</strong>
-        <p>{entry.memo?.trim() || entry.abbreviatedKey}</p>
+        <p>{entry.memo?.trim() || ''}</p>
       </IonLabel>
       <IonNote slot="end">
         <IonBadge color={isRoot ? 'primary' : 'tertiary'}>
